@@ -1,0 +1,12 @@
+services:
+  renobot:
+    build: .
+    image: renobot:latest
+    restart: unless-stopped
+    read_only: true
+    env_file: .env
+    volumes:
+      - ./config.yaml:/config.yaml:ro
+      # Mount the revamp binary if it is not baked into the image.
+      # - /usr/local/bin/revamp:/revamp:ro
+    command: ["--config", "/config.yaml"]

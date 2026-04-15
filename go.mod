@@ -1,6 +1,6 @@
 module github.com/its-the-vibe/Renobot
 
-go 1.24.13
+go 1.26.2
 
 require (
 	github.com/redis/go-redis/v9 v9.18.0

@@ -2,9 +2,11 @@ services:
   renobot:
     build: .
     image: renobot:latest
-    restart: unless-stopped
+    restart: on-failure:10
     read_only: true
     env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./config.yaml:/config.yaml:ro
       # Mount the revamp binary if it is not baked into the image.

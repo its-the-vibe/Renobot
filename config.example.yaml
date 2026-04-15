@@ -1,0 +1,25 @@
+# Renobot configuration example
+# Copy this file to config.yaml and fill in your values.
+# Sensitive values (e.g. REDIS_PASSWORD) belong in .env, not here.
+
+# GitHub organisation whose Renovate PRs will be summarised.
+org: your-github-org
+
+# Slack channel to post summaries to (name or ID).
+channel: "#renovate"
+
+# Cron schedule for the summary run (default: 09:00 Mon–Fri).
+cron: "0 9 * * 1-5"
+
+# Path to the revamp binary (defaults to "revamp" on PATH).
+revamp_path: revamp
+
+redis:
+  # Address of the Redis instance used by SlackLiner.
+  addr: "localhost:6379"
+
+  # Redis database number (0 is the default).
+  db: 0
+
+  # Key of the SlackLiner message queue list.
+  list_key: "slack_messages"

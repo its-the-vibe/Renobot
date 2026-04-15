@@ -27,6 +27,14 @@ go.work.sum
 # env file
 .env
 
+# Real config file (contains no secrets, but is instance-specific).
+# Commit config.example.yaml instead.
+config.yaml
+
+# Compiled binary (lowercase -o renobot or default directory-name Renobot)
+renobot
+Renobot
+
 # Editor/IDE
 # .idea/
 # .vscode/

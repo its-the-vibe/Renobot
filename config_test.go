@@ -43,6 +43,21 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	if cfg.Redis.ListKey != "slack_messages" {
 		t.Errorf("default redis.list_key = %q, want %q", cfg.Redis.ListKey, "slack_messages")
 	}
+	if cfg.Poppit.InputList != "poppit:notifications" {
+		t.Errorf("default poppit.input_list = %q, want %q", cfg.Poppit.InputList, "poppit:notifications")
+	}
+	if cfg.Poppit.OutputChannel != "poppit:command-output" {
+		t.Errorf("default poppit.output_channel = %q, want %q", cfg.Poppit.OutputChannel, "poppit:command-output")
+	}
+	if cfg.Poppit.Repo != "its-the-vibe/Renobot" {
+		t.Errorf("default poppit.repo = %q, want %q", cfg.Poppit.Repo, "its-the-vibe/Renobot")
+	}
+	if cfg.Poppit.Branch != "refs/heads/main" {
+		t.Errorf("default poppit.branch = %q, want %q", cfg.Poppit.Branch, "refs/heads/main")
+	}
+	if cfg.Poppit.BaseDir != "." {
+		t.Errorf("default poppit.base_dir = %q, want %q", cfg.Poppit.BaseDir, ".")
+	}
 }
 
 func TestLoadConfig_EnvExpansion(t *testing.T) {
@@ -74,6 +89,12 @@ redis:
   addr: redis:6379
   db: 1
   list_key: my_messages
+poppit:
+  input_list: "myapp:commands"
+  output_channel: "myapp:output"
+  repo: "my-org/my-repo"
+  branch: "refs/heads/dev"
+  base_dir: "/opt/myapp"
 `
 	path := writeConfig(t, content)
 	cfg, err := loadConfig(path)
@@ -100,6 +121,21 @@ redis:
 	}
 	if cfg.Redis.ListKey != "my_messages" {
 		t.Errorf("redis.list_key = %q, want my_messages", cfg.Redis.ListKey)
+	}
+	if cfg.Poppit.InputList != "myapp:commands" {
+		t.Errorf("poppit.input_list = %q, want myapp:commands", cfg.Poppit.InputList)
+	}
+	if cfg.Poppit.OutputChannel != "myapp:output" {
+		t.Errorf("poppit.output_channel = %q, want myapp:output", cfg.Poppit.OutputChannel)
+	}
+	if cfg.Poppit.Repo != "my-org/my-repo" {
+		t.Errorf("poppit.repo = %q, want my-org/my-repo", cfg.Poppit.Repo)
+	}
+	if cfg.Poppit.Branch != "refs/heads/dev" {
+		t.Errorf("poppit.branch = %q, want refs/heads/dev", cfg.Poppit.Branch)
+	}
+	if cfg.Poppit.BaseDir != "/opt/myapp" {
+		t.Errorf("poppit.base_dir = %q, want /opt/myapp", cfg.Poppit.BaseDir)
 	}
 }
 

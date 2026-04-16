@@ -27,6 +27,20 @@ type Config struct {
 		DB      int    `yaml:"db"`
 		ListKey string `yaml:"list_key"`
 	} `yaml:"redis"`
+
+	// Poppit holds settings for dispatching commands via Poppit.
+	Poppit struct {
+		// InputList is the Redis list Poppit reads command payloads from.
+		InputList string `yaml:"input_list"`
+		// OutputChannel is the Redis pub/sub channel Poppit publishes command output to.
+		OutputChannel string `yaml:"output_channel"`
+		// Repo is the GitHub repository identifier included in Poppit payloads.
+		Repo string `yaml:"repo"`
+		// Branch is the Git branch reference included in Poppit payloads.
+		Branch string `yaml:"branch"`
+		// BaseDir is the working directory Poppit uses when executing commands.
+		BaseDir string `yaml:"base_dir"`
+	} `yaml:"poppit"`
 }
 
 // loadConfig reads and parses the YAML config file at path.
@@ -62,6 +76,21 @@ func loadConfig(path string) (*Config, error) {
 	}
 	if cfg.Redis.ListKey == "" {
 		cfg.Redis.ListKey = "slack_messages"
+	}
+	if cfg.Poppit.InputList == "" {
+		cfg.Poppit.InputList = "poppit:notifications"
+	}
+	if cfg.Poppit.OutputChannel == "" {
+		cfg.Poppit.OutputChannel = "poppit:command-output"
+	}
+	if cfg.Poppit.Repo == "" {
+		cfg.Poppit.Repo = "its-the-vibe/Renobot"
+	}
+	if cfg.Poppit.Branch == "" {
+		cfg.Poppit.Branch = "refs/heads/main"
+	}
+	if cfg.Poppit.BaseDir == "" {
+		cfg.Poppit.BaseDir = "."
 	}
 
 	return &cfg, nil

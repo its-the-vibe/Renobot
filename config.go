@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -20,6 +21,14 @@ type Config struct {
 
 	// RevampPath is the path (or name) of the revamp binary.
 	RevampPath string `yaml:"revamp_path"`
+
+	// SlackTTLStr is the raw duration string for Slack message TTL (e.g. "24h").
+	// Use SlackTTL for the parsed duration. Defaults to "24h".
+	SlackTTLStr string `yaml:"slack_ttl"`
+
+	// SlackTTL is the parsed time-to-live for Slack messages. Messages should
+	// be deleted from Slack after this duration. Populated by loadConfig.
+	SlackTTL time.Duration `yaml:"-"`
 
 	// Redis holds connection settings for the SlackLiner Redis queue.
 	Redis struct {
@@ -91,6 +100,16 @@ func loadConfig(path string) (*Config, error) {
 	}
 	if cfg.Poppit.BaseDir == "" {
 		cfg.Poppit.BaseDir = "."
+	}
+
+	if cfg.SlackTTLStr == "" {
+		cfg.SlackTTL = 24 * time.Hour
+	} else {
+		d, err := time.ParseDuration(cfg.SlackTTLStr)
+		if err != nil {
+			return nil, fmt.Errorf("config: invalid slack_ttl %q: %w", cfg.SlackTTLStr, err)
+		}
+		cfg.SlackTTL = d
 	}
 
 	return &cfg, nil

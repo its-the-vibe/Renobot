@@ -112,7 +112,7 @@ func handlePoppitOutput(ctx context.Context, cfg *Config, rdb *redis.Client, raw
 		}
 		summary := BranchSummary{Branch: branch, Count: int(countFloat)}
 		repos := parseRepoOutput(out.Output)
-		if err := publishSummary(ctx, rdb, cfg.Redis.ListKey, cfg.Channel, summary, repos); err != nil {
+		if err := publishSummary(ctx, rdb, cfg.Redis.ListKey, cfg.Channel, summary, repos, cfg.SlackTTL); err != nil {
 			log.Printf("Error publishing summary for branch %s: %v", branch, err)
 		}
 	}

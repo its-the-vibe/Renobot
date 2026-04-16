@@ -6,6 +6,7 @@ A Go SlackOps service that manages Renovate PRs via emoji reactions and periodic
 
 - 🕐 Periodic Renovate PR summaries on a configurable cron schedule
 - 📢 Publishes summaries to a Slack channel via [SlackLiner](https://github.com/its-the-vibe/SlackLiner)
+- ⏳ Configurable TTL for Slack messages (default: 24 hours) — messages carry expiry metadata for automatic deletion
 - 🏷️ Messages carry structured metadata (branch name, type) for future emoji-reaction handling
 - 🐳 Lightweight Docker image built from `scratch`
 - ⚙️ Configuration file + `.env` for sensitive values
@@ -32,6 +33,7 @@ Edit `config.yaml` and set your GitHub org, Slack channel, Redis, and Poppit det
 org: your-github-org
 channel: "#renovate"
 cron: "0 9 * * 1-5"   # 09:00 Mon–Fri
+slack_ttl: "24h"       # delete Slack messages after 24 hours
 revamp_path: revamp
 redis:
   addr: "redis-host:6379"
@@ -79,6 +81,7 @@ go build -o renobot .
 | `org` | GitHub organisation (passed to `revamp`) | **required** |
 | `channel` | Slack channel name or ID | **required** |
 | `cron` | Cron schedule for summary runs | `0 9 * * 1-5` |
+| `slack_ttl` | Time-to-live for Slack messages (Go duration string, e.g. `"24h"`, `"12h"`) | `24h` |
 | `revamp_path` | Path to the `revamp` binary (used in Poppit command strings) | `revamp` |
 | `redis.addr` | Redis server address | `localhost:6379` |
 | `redis.db` | Redis database number | `0` |

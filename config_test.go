@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestLoadConfig_RequiredFields(t *testing.T) {
@@ -57,6 +58,9 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	}
 	if cfg.Poppit.BaseDir != "." {
 		t.Errorf("default poppit.base_dir = %q, want %q", cfg.Poppit.BaseDir, ".")
+	}
+	if cfg.SlackTTL != 24*time.Hour {
+		t.Errorf("default slack_ttl = %v, want %v", cfg.SlackTTL, 24*time.Hour)
 	}
 }
 
@@ -137,6 +141,38 @@ poppit:
 	if cfg.Poppit.BaseDir != "/opt/myapp" {
 		t.Errorf("poppit.base_dir = %q, want /opt/myapp", cfg.Poppit.BaseDir)
 	}
+}
+
+func TestLoadConfig_SlackTTL(t *testing.T) {
+	t.Run("explicit ttl is parsed", func(t *testing.T) {
+		path := writeConfig(t, "org: myorg\nchannel: \"#ch\"\nslack_ttl: \"48h\"\n")
+		cfg, err := loadConfig(path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.SlackTTL != 48*time.Hour {
+			t.Errorf("slack_ttl = %v, want %v", cfg.SlackTTL, 48*time.Hour)
+		}
+	})
+
+	t.Run("fractional duration is parsed", func(t *testing.T) {
+		path := writeConfig(t, "org: myorg\nchannel: \"#ch\"\nslack_ttl: \"1h30m\"\n")
+		cfg, err := loadConfig(path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.SlackTTL != 90*time.Minute {
+			t.Errorf("slack_ttl = %v, want %v", cfg.SlackTTL, 90*time.Minute)
+		}
+	})
+
+	t.Run("invalid ttl returns error", func(t *testing.T) {
+		path := writeConfig(t, "org: myorg\nchannel: \"#ch\"\nslack_ttl: \"notaduration\"\n")
+		_, err := loadConfig(path)
+		if err == nil {
+			t.Fatal("expected error for invalid slack_ttl, got nil")
+		}
+	})
 }
 
 // writeConfig writes content to a temp file and returns its path.

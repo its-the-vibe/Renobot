@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -15,6 +16,7 @@ type slackMessage struct {
 	Channel  string           `json:"channel"`
 	Text     string           `json:"text"`
 	Metadata *messageMetadata `json:"metadata,omitempty"`
+	TTL      int64            `json:"ttl,omitempty"`
 }
 
 // messageMetadata mirrors SlackLiner's MessageMetadata type.
@@ -25,13 +27,16 @@ type messageMetadata struct {
 
 // publishSummary formats and pushes a branch summary message to the SlackLiner
 // Redis queue. The message text lists the repos associated with the branch, and
-// the metadata carries the branch name and type for future emoji handling.
-func publishSummary(ctx context.Context, rdb *redis.Client, listKey, channel string, summary BranchSummary, repos []string) error {
+// the metadata carries the branch name, type, and TTL for future handling.
+func publishSummary(ctx context.Context, rdb *redis.Client, listKey, channel string, summary BranchSummary, repos []string, ttl time.Duration) error {
 	text := formatMessage(summary, repos)
+
+	ttlSeconds := int64(ttl.Seconds())
 
 	msg := slackMessage{
 		Channel: channel,
 		Text:    text,
+		TTL:     ttlSeconds,
 		Metadata: &messageMetadata{
 			EventType: "renobot",
 			EventPayload: map[string]interface{}{
@@ -50,7 +55,7 @@ func publishSummary(ctx context.Context, rdb *redis.Client, listKey, channel str
 		return fmt.Errorf("pushing to Redis list %q: %w", listKey, err)
 	}
 
-	log.Printf("Published summary for branch %s (%d repo(s)) to channel %s", summary.Branch, len(repos), channel)
+	log.Printf("Published summary for branch %s (%d repo(s)) to channel %s (TTL: %s)", summary.Branch, len(repos), channel, ttl)
 	return nil
 }
 

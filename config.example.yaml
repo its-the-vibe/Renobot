@@ -11,6 +11,11 @@ channel: "#renovate"
 # Cron schedule for the summary run (default: 09:00 Mon–Fri).
 cron: "0 9 * * 1-5"
 
+# Time-to-live for Slack messages. Messages are deleted from Slack after this
+# duration. Accepts Go duration strings (e.g. "24h", "12h", "1h30m").
+# Defaults to "24h" if not set.
+slack_ttl: "24h"
+
 # Path to the revamp binary (defaults to "revamp" on PATH).
 revamp_path: revamp
 

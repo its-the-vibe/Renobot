@@ -59,7 +59,7 @@ func formatMessage(summary BranchSummary, repos []string) string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "*%s* (%d open PR%s)\n", summary.Branch, summary.Count, pluralS(summary.Count))
 	for _, repo := range repos {
-		fmt.Fprintf(&sb, "• %s\n", repo)
+		fmt.Fprintf(&sb, "• `%s`\n", repo)
 	}
 	return strings.TrimRight(sb.String(), "\n")
 }

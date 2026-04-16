@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -48,6 +49,9 @@ func main() {
 
 	log.Printf("Renobot started. Org: %s, Channel: %s, Schedule: %s", cfg.Org, cfg.Channel, cfg.Cron)
 
+	// Start background listener for Poppit command output.
+	go listenPoppitOutput(ctx, cfg, rdb)
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	<-sigChan
@@ -55,32 +59,29 @@ func main() {
 	log.Println("Shutting down...")
 }
 
-// runSummary is the core job: fetch branch data via revamp and publish to Slack.
+// runSummary is the core job: publish a revamp branch-list command to Poppit.
+// Poppit executes the command and publishes output to its configured Redis
+// channel, where listenPoppitOutput picks it up and drives the rest of the
+// summary flow (per-branch repo fetches and Slack publishing).
 func runSummary(ctx context.Context, cfg *Config, rdb *redis.Client) {
 	log.Printf("Running summary for org %s...", cfg.Org)
 
-	branches, err := runRevampBranches(cfg.RevampPath, cfg.Org)
-	if err != nil {
-		log.Printf("Error fetching branch list: %v", err)
+	cmd := fmt.Sprintf("%s summary --org %s --branch", cfg.RevampPath, cfg.Org)
+	payload := PoppitPayload{
+		Repo:     cfg.Poppit.Repo,
+		Branch:   cfg.Poppit.Branch,
+		Type:     "Renobot",
+		Dir:      cfg.Poppit.BaseDir,
+		Commands: []string{cmd},
+		Metadata: map[string]interface{}{
+			"type": "Renobot",
+		},
+	}
+
+	if err := publishPoppitCommand(ctx, rdb, cfg.Poppit.InputList, payload); err != nil {
+		log.Printf("Error publishing branch command to Poppit: %v", err)
 		return
 	}
 
-	if len(branches) == 0 {
-		log.Println("No open Renovate branches found")
-		return
-	}
-
-	for _, b := range branches {
-		repos, err := runRevampRepos(cfg.RevampPath, cfg.Org, b.Branch)
-		if err != nil {
-			log.Printf("Error fetching repos for branch %s: %v", b.Branch, err)
-			continue
-		}
-
-		if err := publishSummary(ctx, rdb, cfg.Redis.ListKey, cfg.Channel, b, repos); err != nil {
-			log.Printf("Error publishing summary for branch %s: %v", b.Branch, err)
-		}
-	}
-
-	log.Printf("Summary run complete. Processed %d branch(es).", len(branches))
+	log.Printf("Published revamp branch command to Poppit list %q", cfg.Poppit.InputList)
 }

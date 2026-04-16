@@ -52,6 +52,9 @@ func main() {
 	// Start background listener for Poppit command output.
 	go listenPoppitOutput(ctx, cfg, rdb)
 
+	// Start background listener for Slack emoji reaction events.
+	go listenReactionEvents(ctx, cfg, rdb)
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	<-sigChan

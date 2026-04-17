@@ -2,9 +2,25 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
+
+	"github.com/slack-go/slack"
 )
+
+// mockSlackClient is a test double for SlackClient.
+type mockSlackClient struct {
+	messages []slack.Message
+	err      error
+}
+
+func (m *mockSlackClient) GetConversationHistory(_ *slack.GetConversationHistoryParameters) (*slack.GetConversationHistoryResponse, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return &slack.GetConversationHistoryResponse{Messages: m.messages}, nil
+}
 
 // TestBuildMergeCommand_HeartEyesCat verifies that the 😻 reaction produces a
 // merge command without --max.
@@ -117,58 +133,8 @@ func TestReactionToNumber_Unknown(t *testing.T) {
 	}
 }
 
-// TestHandleReactionEvent_HeartEyesCat checks that handleReactionEvent
-// correctly builds the Poppit payload for a 😻 reaction.
-func TestHandleReactionEvent_HeartEyesCat(t *testing.T) {
-	cfg := &Config{
-		Org:        "myorg",
-		RevampPath: "revamp",
-	}
-	cfg.Poppit.Repo = "its-the-vibe/Renobot"
-	cfg.Poppit.Branch = "refs/heads/main"
-	cfg.Poppit.BaseDir = "/opt/app"
-	cfg.Poppit.InputList = "poppit:notifications"
-
-	evt := ReactionEvent{
-		Event: SlackReactionEvent{
-			Type:     "reaction_added",
-			Reaction: "heart_eyes_cat",
-			Item: SlackReactionItem{
-				Type:    "message",
-				Channel: "C12345",
-				Ts:      "1776381814.663509",
-			},
-		},
-		Metadata: &messageMetadata{
-			EventType: "renobot",
-			EventPayload: map[string]interface{}{
-				"type":   "renobot",
-				"branch": "renovate/golang-version-updates",
-			},
-		},
-	}
-
-	// Verify the event parses correctly and the command is built as expected.
-	if evt.Event.Type != "reaction_added" {
-		t.Errorf("Event.Type = %q, want reaction_added", evt.Event.Type)
-	}
-	branch, _ := evt.Metadata.EventPayload["branch"].(string)
-	if branch == "" {
-		t.Fatal("branch is empty")
-	}
-
-	cmd, err := buildMergeCommand(cfg, evt.Event.Reaction, branch)
-	if err != nil {
-		t.Fatalf("buildMergeCommand error: %v", err)
-	}
-	want := "revamp merge --org myorg --branch renovate/golang-version-updates"
-	if cmd != want {
-		t.Errorf("cmd = %q, want %q", cmd, want)
-	}
-}
-
-// TestHandleReactionEvent_Parsing validates JSON round-trip of ReactionEvent.
-func TestHandleReactionEvent_Parsing(t *testing.T) {
+// TestReactionEvent_Parsing validates JSON parsing of the raw Slack reaction event.
+func TestReactionEvent_Parsing(t *testing.T) {
 	raw := `{
 		"event": {
 			"type": "reaction_added",
@@ -180,13 +146,6 @@ func TestHandleReactionEvent_Parsing(t *testing.T) {
 			},
 			"event_ts": "1776381871.000900",
 			"user": "U12345"
-		},
-		"metadata": {
-			"event_type": "renobot",
-			"event_payload": {
-				"type": "renobot",
-				"branch": "renovate/foo"
-			}
 		}
 	}`
 
@@ -207,67 +166,93 @@ func TestHandleReactionEvent_Parsing(t *testing.T) {
 	if evt.Event.Item.Ts != "1776381814.663509" {
 		t.Errorf("Event.Item.Ts = %q, want 1776381814.663509", evt.Event.Item.Ts)
 	}
-	if evt.Metadata == nil {
-		t.Fatal("Metadata is nil")
-	}
-	if evt.Metadata.EventType != "renobot" {
-		t.Errorf("Metadata.EventType = %q, want renobot", evt.Metadata.EventType)
-	}
-	branch, _ := evt.Metadata.EventPayload["branch"].(string)
-	if branch != "renovate/foo" {
-		t.Errorf("metadata.branch = %q, want renovate/foo", branch)
-	}
 }
 
-// TestHandleReactionEvent_IgnoresNonRenobot verifies that events for
-// non-Renobot messages are silently ignored.
-func TestHandleReactionEvent_IgnoresNonRenobot(t *testing.T) {
-	raw := `{
-		"event": {
-			"type": "reaction_added",
-			"reaction": "heart_eyes_cat",
-			"item": {"type": "message", "channel": "C1", "ts": "123.456"}
+// TestFetchMessageMetadata_Renobot verifies that a message with renobot metadata
+// is correctly returned by fetchMessageMetadata.
+func TestFetchMessageMetadata_Renobot(t *testing.T) {
+	msg := slack.Message{}
+	msg.Metadata = slack.SlackMetadata{
+		EventType: "renobot",
+		EventPayload: map[string]interface{}{
+			"type":   "renobot",
+			"branch": "renovate/golang-version-updates",
 		},
-		"metadata": {
-			"event_type": "other",
-			"event_payload": {"type": "other"}
-		}
-	}`
-
-	// handleReactionEvent should return early without panicking.
-	// We test indirectly by confirming buildMergeCommand is never
-	// reached via the guard on msgType.
-	var evt ReactionEvent
-	if err := json.Unmarshal([]byte(raw), &evt); err != nil {
-		t.Fatalf("unmarshal: %v", err)
 	}
-	msgType, _ := evt.Metadata.EventPayload["type"].(string)
-	if strings.EqualFold(msgType, "renobot") {
-		t.Error("expected non-renobot message type to not match")
+
+	client := &mockSlackClient{messages: []slack.Message{msg}}
+	meta, err := fetchMessageMetadata(client, "C12345", "1776381814.663509")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if meta == nil {
+		t.Fatal("expected metadata, got nil")
+	}
+	if meta.EventType != "renobot" {
+		t.Errorf("EventType = %q, want renobot", meta.EventType)
+	}
+	branch, _ := meta.EventPayload["branch"].(string)
+	if branch != "renovate/golang-version-updates" {
+		t.Errorf("branch = %q, want renovate/golang-version-updates", branch)
 	}
 }
 
-// TestHandleReactionEvent_IgnoresMissingBranch verifies that events without
-// a branch in metadata are silently skipped.
-func TestHandleReactionEvent_IgnoresMissingBranch(t *testing.T) {
-	raw := `{
-		"event": {
-			"type": "reaction_added",
-			"reaction": "heart_eyes_cat",
-			"item": {"type": "message", "channel": "C1", "ts": "123.456"}
+// TestFetchMessageMetadata_NoMetadata verifies that a message without metadata
+// returns nil without error.
+func TestFetchMessageMetadata_NoMetadata(t *testing.T) {
+	msg := slack.Message{} // no metadata set
+	client := &mockSlackClient{messages: []slack.Message{msg}}
+	meta, err := fetchMessageMetadata(client, "C12345", "1776381814.663509")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if meta != nil {
+		t.Errorf("expected nil metadata, got %+v", meta)
+	}
+}
+
+// TestFetchMessageMetadata_NotFound verifies that an empty message list
+// returns nil without error.
+func TestFetchMessageMetadata_NotFound(t *testing.T) {
+	client := &mockSlackClient{messages: []slack.Message{}}
+	meta, err := fetchMessageMetadata(client, "C12345", "9999999999.000000")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if meta != nil {
+		t.Errorf("expected nil, got %+v", meta)
+	}
+}
+
+// TestFetchMessageMetadata_APIError verifies that a Slack API error is propagated.
+func TestFetchMessageMetadata_APIError(t *testing.T) {
+	client := &mockSlackClient{err: errors.New("slack api error")}
+	_, err := fetchMessageMetadata(client, "C12345", "1776381814.663509")
+	if err == nil {
+		t.Error("expected error, got nil")
+	}
+}
+
+// TestFetchMessageMetadata_NonRenobot verifies that non-renobot metadata is
+// returned as-is (filtering happens in handleReactionEvent, not here).
+func TestFetchMessageMetadata_NonRenobot(t *testing.T) {
+	msg := slack.Message{}
+	msg.Metadata = slack.SlackMetadata{
+		EventType: "other-service",
+		EventPayload: map[string]interface{}{
+			"type": "other",
 		},
-		"metadata": {
-			"event_type": "renobot",
-			"event_payload": {"type": "renobot"}
-		}
-	}`
-
-	var evt ReactionEvent
-	if err := json.Unmarshal([]byte(raw), &evt); err != nil {
-		t.Fatalf("unmarshal: %v", err)
 	}
-	branch, _ := evt.Metadata.EventPayload["branch"].(string)
-	if branch != "" {
-		t.Errorf("expected empty branch, got %q", branch)
+	client := &mockSlackClient{messages: []slack.Message{msg}}
+	meta, err := fetchMessageMetadata(client, "C12345", "1776381814.663509")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if meta == nil {
+		t.Fatal("expected metadata, got nil")
+	}
+	if meta.EventType != "other-service" {
+		t.Errorf("EventType = %q, want other-service", meta.EventType)
 	}
 }
+

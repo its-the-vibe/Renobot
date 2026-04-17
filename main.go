@@ -11,6 +11,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"github.com/robfig/cron/v3"
+	"github.com/slack-go/slack"
 )
 
 func main() {
@@ -53,7 +54,12 @@ func main() {
 	go listenPoppitOutput(ctx, cfg, rdb)
 
 	// Start background listener for Slack emoji reaction events.
-	go listenReactionEvents(ctx, cfg, rdb)
+	slackToken := os.Getenv("SLACK_BOT_TOKEN")
+	if slackToken == "" {
+		log.Println("Warning: SLACK_BOT_TOKEN is not set; emoji reaction handling will not work")
+	}
+	slackClient := slack.New(slackToken)
+	go listenReactionEvents(ctx, cfg, rdb, slackClient)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)

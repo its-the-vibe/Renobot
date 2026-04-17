@@ -8,7 +8,14 @@ import (
 	"strings"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/slack-go/slack"
 )
+
+// SlackClient is the interface for Slack API calls used by the reaction handler.
+// *slack.Client satisfies this interface.
+type SlackClient interface {
+	GetConversationHistory(params *slack.GetConversationHistoryParameters) (*slack.GetConversationHistoryResponse, error)
+}
 
 // SlackReactionItem represents the Slack message that was reacted to.
 type SlackReactionItem struct {
@@ -26,18 +33,16 @@ type SlackReactionEvent struct {
 	User     string            `json:"user"`
 }
 
-// ReactionEvent is the enriched payload published to the reaction pub/sub
-// channel by SlackLiner when a user reacts to a message. It pairs the raw
-// Slack reaction event with the metadata of the reacted-to message so that
-// Renobot can verify the message origin and dispatch the correct command.
+// ReactionEvent is the raw Slack reaction_added event callback payload published
+// to the pub/sub channel. It does NOT include message metadata — that must be
+// fetched separately via the Slack API using the item channel and timestamp.
 type ReactionEvent struct {
-	Event    SlackReactionEvent `json:"event"`
-	Metadata *messageMetadata   `json:"metadata,omitempty"`
+	Event SlackReactionEvent `json:"event"`
 }
 
 // listenReactionEvents subscribes to the configured Slack reaction pub/sub
 // channel and processes each event until ctx is cancelled.
-func listenReactionEvents(ctx context.Context, cfg *Config, rdb *redis.Client) {
+func listenReactionEvents(ctx context.Context, cfg *Config, rdb *redis.Client, slackClient SlackClient) {
 	sub := rdb.Subscribe(ctx, cfg.Slack.ReactionChannel)
 	defer sub.Close()
 
@@ -50,7 +55,7 @@ func listenReactionEvents(ctx context.Context, cfg *Config, rdb *redis.Client) {
 			if !ok {
 				return
 			}
-			handleReactionEvent(ctx, cfg, rdb, msg.Payload)
+			handleReactionEvent(ctx, cfg, rdb, slackClient, msg.Payload)
 		case <-ctx.Done():
 			return
 		}
@@ -58,9 +63,10 @@ func listenReactionEvents(ctx context.Context, cfg *Config, rdb *redis.Client) {
 }
 
 // handleReactionEvent processes a single reaction event from the pub/sub
-// channel. It verifies the event is for a Renobot-generated message and
-// dispatches the appropriate revamp merge command via Poppit.
-func handleReactionEvent(ctx context.Context, cfg *Config, rdb *redis.Client, raw string) {
+// channel. It looks up the original Slack message metadata via the Slack API
+// to verify the message is a Renobot summary, then dispatches the appropriate
+// revamp merge command via Poppit.
+func handleReactionEvent(ctx context.Context, cfg *Config, rdb *redis.Client, slackClient SlackClient, raw string) {
 	var evt ReactionEvent
 	if err := json.Unmarshal([]byte(raw), &evt); err != nil {
 		log.Printf("Error parsing reaction event: %v", err)
@@ -71,23 +77,28 @@ func handleReactionEvent(ctx context.Context, cfg *Config, rdb *redis.Client, ra
 		return
 	}
 
-	if evt.Metadata == nil {
+	channel := evt.Event.Item.Channel
+	ts := evt.Event.Item.Ts
+
+	meta, err := fetchMessageMetadata(slackClient, channel, ts)
+	if err != nil {
+		log.Printf("Error fetching message metadata for ts=%s: %v", ts, err)
+		return
+	}
+	if meta == nil {
 		return
 	}
 
-	msgType, _ := evt.Metadata.EventPayload["type"].(string)
+	msgType, _ := meta.EventPayload["type"].(string)
 	if !strings.EqualFold(msgType, "renobot") {
 		return
 	}
 
-	branch, _ := evt.Metadata.EventPayload["branch"].(string)
+	branch, _ := meta.EventPayload["branch"].(string)
 	if branch == "" {
-		log.Printf("Reaction event missing branch in metadata, skipping")
+		log.Printf("Reaction event missing branch in metadata, skipping (ts=%s)", ts)
 		return
 	}
-
-	threadTs := evt.Event.Item.Ts
-	channel := evt.Event.Item.Channel
 
 	cmd, err := buildMergeCommand(cfg, evt.Event.Reaction, branch)
 	if err != nil {
@@ -104,7 +115,7 @@ func handleReactionEvent(ctx context.Context, cfg *Config, rdb *redis.Client, ra
 		Metadata: map[string]interface{}{
 			"type":      "Renobot",
 			"branch":    branch,
-			"thread_ts": threadTs,
+			"thread_ts": ts,
 			"channel":   channel,
 		},
 	}
@@ -114,7 +125,41 @@ func handleReactionEvent(ctx context.Context, cfg *Config, rdb *redis.Client, ra
 		return
 	}
 
-	log.Printf("Dispatched merge command %q for branch %s (thread_ts: %s)", cmd, branch, threadTs)
+	log.Printf("Dispatched merge command %q for branch %s (thread_ts: %s)", cmd, branch, ts)
+}
+
+// fetchMessageMetadata retrieves the Slack message at the given channel and
+// timestamp and returns its metadata. Returns nil (no error) if the message
+// exists but carries no metadata.
+func fetchMessageMetadata(slackClient SlackClient, channel, ts string) (*messageMetadata, error) {
+	resp, err := slackClient.GetConversationHistory(&slack.GetConversationHistoryParameters{
+		ChannelID:          channel,
+		Latest:             ts,
+		Limit:              1,
+		Inclusive:          true,
+		IncludeAllMetadata: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("getting conversation history: %w", err)
+	}
+
+	if len(resp.Messages) == 0 {
+		return nil, nil
+	}
+
+	msg := resp.Messages[0]
+	if msg.Metadata.EventType == "" {
+		return nil, nil
+	}
+
+	meta := &messageMetadata{
+		EventType:    msg.Metadata.EventType,
+		EventPayload: make(map[string]interface{}, len(msg.Metadata.EventPayload)),
+	}
+	for k, v := range msg.Metadata.EventPayload {
+		meta.EventPayload[k] = v
+	}
+	return meta, nil
 }
 
 // buildMergeCommand constructs the revamp merge command string for a given
@@ -146,3 +191,4 @@ func reactionToNumber(reaction string) (int, bool) {
 	n, ok := numbers[reaction]
 	return n, ok
 }
+

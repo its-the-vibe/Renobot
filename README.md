@@ -100,6 +100,7 @@ Sensitive values are read from environment variables:
 | Variable | Description |
 |----------|-------------|
 | `REDIS_PASSWORD` | Redis authentication password |
+| `SLACK_BOT_TOKEN` | Slack bot token for looking up message metadata via the Slack API (required for emoji reaction handling). The bot must have the `channels:history` scope. |
 
 > **Poppit alignment:** `poppit.input_list` must match `POPPIT_SERVICE_REDIS_LIST_NAME` and `poppit.output_channel` must match `POPPIT_SERVICE_COMMAND_OUTPUT_CHANNEL` in your Poppit deployment.
 
@@ -114,9 +115,9 @@ Sensitive values are read from environment variables:
 
 ### Emoji Reaction Flow
 
-7. When a user reacts to a Renobot-posted summary message, SlackLiner enriches the Slack reaction event with the original message's metadata (including `type` and `branch`) and publishes it to the `slack.reaction_channel` Redis pub/sub channel.
-8. Renobot's reaction listener receives the event and checks that the message metadata has `type: renobot` and a `branch` field.
-9. Depending on the reaction emoji, Renobot dispatches one of the following commands via Poppit:
+7. When a user reacts to a Renobot-posted summary message, the raw Slack `reaction_added` event is published to the `slack.reaction_channel` Redis pub/sub channel.
+8. Renobot's reaction listener receives the event and calls the Slack API (`conversations.history` with `include_all_metadata=true`) to fetch the original message and read its `event_payload` metadata.
+9. If the message metadata has `type: renobot` and a `branch` field, Renobot dispatches one of the following commands via Poppit:
    - 😻 (`heart_eyes_cat`) → `revamp merge --org <org> --branch <branch>`
    - Number emoji (e.g., 3️⃣ / `three`) → `revamp merge --org <org> --branch <branch> --max <n>`
    - Any other reaction is silently ignored.

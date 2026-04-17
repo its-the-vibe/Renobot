@@ -46,3 +46,9 @@ poppit:
 
   # Working directory Poppit uses when executing revamp commands.
   base_dir: "/path/to/working/dir"
+
+slack:
+  # Redis pub/sub channel that SlackLiner publishes emoji reaction events to.
+  # Renobot subscribes to this channel to detect reactions on its posted messages.
+  # Defaults to "slack:reactions" if not set.
+  reaction_channel: "slack:reactions"

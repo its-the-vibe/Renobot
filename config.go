@@ -50,6 +50,14 @@ type Config struct {
 		// BaseDir is the working directory Poppit uses when executing commands.
 		BaseDir string `yaml:"base_dir"`
 	} `yaml:"poppit"`
+
+	// Slack holds settings for emoji reaction handling.
+	Slack struct {
+		// ReactionChannel is the Redis pub/sub channel that SlackLiner publishes
+		// emoji reaction events to. Renobot subscribes to this channel to detect
+		// reactions on its posted messages.
+		ReactionChannel string `yaml:"reaction_channel"`
+	} `yaml:"slack"`
 }
 
 // loadConfig reads and parses the YAML config file at path.
@@ -100,6 +108,10 @@ func loadConfig(path string) (*Config, error) {
 	}
 	if cfg.Poppit.BaseDir == "" {
 		cfg.Poppit.BaseDir = "."
+	}
+
+	if cfg.Slack.ReactionChannel == "" {
+		cfg.Slack.ReactionChannel = "slack:reactions"
 	}
 
 	if cfg.SlackTTLStr == "" {

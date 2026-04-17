@@ -15,6 +15,7 @@ import (
 type slackMessage struct {
 	Channel  string           `json:"channel"`
 	Text     string           `json:"text"`
+	ThreadTs string           `json:"thread_ts,omitempty"`
 	Metadata *messageMetadata `json:"metadata,omitempty"`
 	TTL      int64            `json:"ttl,omitempty"`
 }
@@ -74,4 +75,26 @@ func pluralS(n int) string {
 		return ""
 	}
 	return "s"
+}
+
+// publishThreadReply pushes a thread reply message to the SlackLiner Redis
+// queue. The reply is threaded under the message identified by threadTs.
+func publishThreadReply(ctx context.Context, rdb *redis.Client, listKey, channel, threadTs, text string) error {
+	msg := slackMessage{
+		Channel:  channel,
+		Text:     text,
+		ThreadTs: threadTs,
+	}
+
+	payload, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("marshaling thread reply: %w", err)
+	}
+
+	if err := rdb.RPush(ctx, listKey, string(payload)).Err(); err != nil {
+		return fmt.Errorf("pushing thread reply to Redis list %q: %w", listKey, err)
+	}
+
+	log.Printf("Published thread reply to channel %s (thread_ts: %s)", channel, threadTs)
+	return nil
 }

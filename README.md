@@ -7,7 +7,7 @@ A Go SlackOps service that manages Renovate PRs via emoji reactions and periodic
 - 🕐 Periodic Renovate PR summaries on a configurable cron schedule
 - 📢 Publishes summaries to a Slack channel via [SlackLiner](https://github.com/its-the-vibe/SlackLiner)
 - ⏳ Configurable TTL for Slack messages (default: 24 hours) — messages carry expiry metadata for automatic deletion
-- 🏷️ Messages carry structured metadata (branch name, type) for future emoji-reaction handling
+- 😻 Emoji reaction handling — react to a Renobot message with 😻 (`heart_eyes_cat`) to trigger `revamp merge` for the branch, or a number emoji (e.g., 3️⃣) to merge up to that many PRs
 - 🐳 Lightweight Docker image built from `scratch`
 - ⚙️ Configuration file + `.env` for sensitive values
 - 🔗 Decoupled command execution via [Poppit](https://github.com/its-the-vibe/Poppit) — commands are dispatched through Redis for scalable, CI/CD-style execution
@@ -45,6 +45,8 @@ poppit:
   repo: "its-the-vibe/Renobot"
   branch: "refs/heads/main"
   base_dir: "/path/to/working/dir"
+slack:
+  reaction_channel: "slack:reactions"
 ```
 
 ### 2. Create your `.env` file
@@ -91,12 +93,14 @@ go build -o renobot .
 | `poppit.repo` | GitHub repo identifier included in Poppit payloads | `its-the-vibe/Renobot` |
 | `poppit.branch` | Git branch reference included in Poppit payloads | `refs/heads/main` |
 | `poppit.base_dir` | Working directory Poppit uses when executing commands | `.` |
+| `slack.reaction_channel` | Redis pub/sub channel SlackLiner publishes emoji reaction events to | `slack:reactions` |
 
 Sensitive values are read from environment variables:
 
 | Variable | Description |
 |----------|-------------|
 | `REDIS_PASSWORD` | Redis authentication password |
+| `SLACK_BOT_TOKEN` | Slack bot token for looking up message metadata via the Slack API (required for emoji reaction handling). The bot must have the `channels:history` scope. |
 
 > **Poppit alignment:** `poppit.input_list` must match `POPPIT_SERVICE_REDIS_LIST_NAME` and `poppit.output_channel` must match `POPPIT_SERVICE_COMMAND_OUTPUT_CHANNEL` in your Poppit deployment.
 
@@ -106,8 +110,19 @@ Sensitive values are read from environment variables:
 2. [Poppit](https://github.com/its-the-vibe/Poppit) pops the payload, executes the command, and publishes its output as JSON to the `poppit.output_channel` Redis pub/sub channel.
 3. Renobot's background listener receives the branch-list output, parses it, and pushes one more Poppit payload per branch — each asking Poppit to run `revamp summary --org <org> --head <branch>`. Branch name and PR count are carried in the payload's `metadata` field.
 4. Poppit executes each `--head` command and publishes the repo-list output to the same output channel.
-5. Renobot's listener receives each repo-list output, formats a message, and pushes it as JSON to the SlackLiner Redis list (`redis.list_key`). Each message carries Slack metadata with `event_type: renobot` and the branch name, ready for future emoji-reaction handling.
+5. Renobot's listener receives each repo-list output, formats a message, and pushes it as JSON to the SlackLiner Redis list (`redis.list_key`). Each message carries Slack metadata with `event_type: renobot` and the branch name.
 6. [SlackLiner](https://github.com/its-the-vibe/SlackLiner) picks up the messages and posts them to the configured Slack channel.
+
+### Emoji Reaction Flow
+
+7. When a user reacts to a Renobot-posted summary message, the raw Slack `reaction_added` event is published to the `slack.reaction_channel` Redis pub/sub channel.
+8. Renobot's reaction listener receives the event and calls the Slack API (`conversations.history` with `include_all_metadata=true`) to fetch the original message and read its `event_payload` metadata.
+9. If the message metadata has `type: renobot` and a `branch` field, Renobot dispatches one of the following commands via Poppit:
+   - 😻 (`heart_eyes_cat`) → `revamp merge --org <org> --branch <branch>`
+   - Number emoji (e.g., 3️⃣ / `three`) → `revamp merge --org <org> --branch <branch> --max <n>`
+   - Any other reaction is silently ignored.
+10. Poppit runs the merge command and publishes its output to the `poppit.output_channel`.
+11. Renobot's Poppit listener receives the output and posts it as a thread reply to the original Slack message via SlackLiner.
 
 ## Project Structure
 
@@ -118,6 +133,7 @@ Sensitive values are read from environment variables:
 ├── revamp.go             # Revamp output parsing helpers
 ├── poppit.go             # Poppit Redis dispatch and output listener
 ├── publish.go            # SlackLiner Redis queue publishing
+├── reaction.go           # Slack emoji reaction event listener and handler
 ├── config.example.yaml   # Example configuration (commit this)
 ├── .env.example          # Example environment file (commit this)
 ├── Dockerfile            # Multi-stage build -> scratch runtime

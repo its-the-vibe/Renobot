@@ -87,6 +87,22 @@ func handlePoppitOutput(ctx context.Context, cfg *Config, rdb *redis.Client, raw
 	}
 
 	switch {
+	case strings.Contains(out.Command, " merge "):
+		branch, _ := out.Metadata["branch"].(string)
+		threadTs, _ := out.Metadata["thread_ts"].(string)
+		channel, _ := out.Metadata["channel"].(string)
+		if threadTs == "" || channel == "" {
+			log.Printf("Missing thread_ts or channel in metadata for merge command %q", out.Command)
+			return
+		}
+		text := strings.TrimSpace(out.Output)
+		if text == "" {
+			text = fmt.Sprintf("Merge completed for branch %s", branch)
+		}
+		if err := publishThreadReply(ctx, rdb, cfg.Redis.ListKey, channel, threadTs, text); err != nil {
+			log.Printf("Error publishing merge reply for branch %s: %v", branch, err)
+		}
+
 	case strings.Contains(out.Command, "--branch"):
 		headPayloads := buildHeadPayloads(cfg, out.Output)
 		if len(headPayloads) == 0 {

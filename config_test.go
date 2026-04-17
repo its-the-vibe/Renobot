@@ -62,6 +62,12 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	if cfg.SlackTTL != 24*time.Hour {
 		t.Errorf("default slack_ttl = %v, want %v", cfg.SlackTTL, 24*time.Hour)
 	}
+	if cfg.Slack.ReactionChannel != "slack:reactions" {
+		t.Errorf("default slack.reaction_channel = %q, want %q", cfg.Slack.ReactionChannel, "slack:reactions")
+	}
+	if cfg.Slack.SlashCommandChannel != "slack:commands" {
+		t.Errorf("default slack.slash_command_channel = %q, want %q", cfg.Slack.SlashCommandChannel, "slack:commands")
+	}
 }
 
 func TestLoadConfig_EnvExpansion(t *testing.T) {

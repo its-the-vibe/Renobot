@@ -52,3 +52,9 @@ slack:
   # Renobot subscribes to this channel to detect reactions on its posted messages.
   # Defaults to "slack:reactions" if not set.
   reaction_channel: "slack:reactions"
+
+  # Redis pub/sub channel that Slack slash commands are published to.
+  # Renobot subscribes to this channel to trigger summary publishing when
+  # the /renobot command is issued from Slack.
+  # Defaults to "slack:commands" if not set.
+  slash_command_channel: "slack:commands"

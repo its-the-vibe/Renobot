@@ -61,6 +61,9 @@ func main() {
 	slackClient := slack.New(slackToken)
 	go listenReactionEvents(ctx, cfg, rdb, slackClient)
 
+	// Start background listener for Slack slash commands.
+	go listenSlashCommands(ctx, cfg, rdb)
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	<-sigChan

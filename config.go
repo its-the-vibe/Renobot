@@ -51,12 +51,16 @@ type Config struct {
 		BaseDir string `yaml:"base_dir"`
 	} `yaml:"poppit"`
 
-	// Slack holds settings for emoji reaction handling.
+	// Slack holds settings for emoji reaction and slash command handling.
 	Slack struct {
 		// ReactionChannel is the Redis pub/sub channel that SlackLiner publishes
 		// emoji reaction events to. Renobot subscribes to this channel to detect
 		// reactions on its posted messages.
 		ReactionChannel string `yaml:"reaction_channel"`
+		// SlashCommandChannel is the Redis pub/sub channel that Slack slash
+		// commands are published to. Renobot subscribes to this channel to
+		// trigger summary publishing when the /renobot command is issued.
+		SlashCommandChannel string `yaml:"slash_command_channel"`
 	} `yaml:"slack"`
 }
 
@@ -112,6 +116,9 @@ func loadConfig(path string) (*Config, error) {
 
 	if cfg.Slack.ReactionChannel == "" {
 		cfg.Slack.ReactionChannel = "slack:reactions"
+	}
+	if cfg.Slack.SlashCommandChannel == "" {
+		cfg.Slack.SlashCommandChannel = "slack:commands"
 	}
 
 	if cfg.SlackTTLStr == "" {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 	"strings"
 	"time"
 
@@ -61,11 +62,15 @@ func publishSummary(ctx context.Context, rdb *redis.Client, listKey, channel str
 }
 
 // formatMessage builds the Slack message text for a branch summary.
+// Each repository is rendered as a Slack hyperlink pointing directly to the
+// open Renovate PRs for that branch in the repository.
 func formatMessage(summary BranchSummary, repos []string) string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "*%s* (%d open PR%s)\n", summary.Branch, summary.Count, pluralS(summary.Count))
 	for _, repo := range repos {
-		fmt.Fprintf(&sb, "• `%s`\n", repo)
+		params := url.Values{"q": {"head:" + summary.Branch + " is:open"}}
+		prURL := "https://github.com/" + repo + "/pulls?" + params.Encode()
+		fmt.Fprintf(&sb, "• <%s|%s>\n", prURL, repo)
 	}
 	return strings.TrimRight(sb.String(), "\n")
 }

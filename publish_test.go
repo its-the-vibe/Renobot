@@ -18,8 +18,12 @@ func TestFormatMessage(t *testing.T) {
 		t.Errorf("message missing header %q\nGot:\n%s", want, got)
 	}
 	for _, repo := range repos {
-		if !strings.Contains(got, "• `"+repo+"`") {
-			t.Errorf("message missing repo %q\nGot:\n%s", repo, got)
+		// Each repo entry must be a Slack hyperlink to the repo's PR list.
+		if !strings.Contains(got, "https://github.com/"+repo+"/pulls?q=") {
+			t.Errorf("message missing PR URL for repo %q\nGot:\n%s", repo, got)
+		}
+		if !strings.Contains(got, "|"+repo+">") {
+			t.Errorf("message missing repo name in link text for %q\nGot:\n%s", repo, got)
 		}
 	}
 }
@@ -32,6 +36,19 @@ func TestFormatMessage_SinglePR(t *testing.T) {
 
 	if want := "1 open PR)"; !strings.Contains(got, want) {
 		t.Errorf("expected singular PR in %q, got:\n%s", want, got)
+	}
+}
+
+func TestFormatMessage_SlackLinkSyntax(t *testing.T) {
+	summary := BranchSummary{Count: 1, Branch: "renovate/golang-version-updates"}
+	repos := []string{"org/my-repo"}
+
+	got := formatMessage(summary, repos)
+
+	// The entry must use Slack's hyperlink syntax: <url|text>
+	wantURL := "https://github.com/org/my-repo/pulls?q=head%3Arenovate%2Fgolang-version-updates+is%3Aopen"
+	if !strings.Contains(got, "<"+wantURL+"|org/my-repo>") {
+		t.Errorf("expected Slack link %q\nGot:\n%s", "<"+wantURL+"|org/my-repo>", got)
 	}
 }
 

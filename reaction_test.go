@@ -255,4 +255,3 @@ func TestFetchMessageMetadata_NonRenobot(t *testing.T) {
 		t.Errorf("EventType = %q, want other-service", meta.EventType)
 	}
 }
-

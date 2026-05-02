@@ -1,5 +1,7 @@
 # Renobot
 
+[![CI](https://github.com/its-the-vibe/Renobot/actions/workflows/ci.yaml/badge.svg)](https://github.com/its-the-vibe/Renobot/actions/workflows/ci.yaml)
+
 A Go SlackOps service that manages Renovate PRs via emoji reactions and periodically posts summaries of open Renovate PRs to Slack.
 
 ## Features
@@ -124,6 +126,25 @@ Sensitive values are read from environment variables:
 10. Poppit runs the merge command and publishes its output to the `poppit.output_channel`.
 11. Renobot's Poppit listener receives the output and posts it as a thread reply to the original Slack message via SlackLiner.
 
+## Development
+
+A `Makefile` is provided to standardise common development tasks:
+
+| Target | Description |
+|--------|-------------|
+| `make build` | Compile the `renobot` binary |
+| `make test` | Run all unit tests |
+| `make lint` | Check formatting (`gofmt`) and run `go vet` |
+| `make fmt` | Apply `gofmt` formatting to all Go source files |
+| `make vet` | Run `go vet` static analysis |
+| `make ci` | Run `lint`, `test`, and `build` in sequence (used by CI) |
+
+### Running CI checks locally
+
+```bash
+make ci
+```
+
 ## Project Structure
 
 ```
@@ -136,6 +157,8 @@ Sensitive values are read from environment variables:
 ├── reaction.go           # Slack emoji reaction event listener and handler
 ├── config.example.yaml   # Example configuration (commit this)
 ├── .env.example          # Example environment file (commit this)
+├── Makefile              # Build, test, and lint targets
+├── .github/workflows/ci.yaml  # GitHub Actions CI workflow
 ├── Dockerfile            # Multi-stage build -> scratch runtime
 └── docker-compose.yml    # Service definition (read-only, no Redis)
 ```

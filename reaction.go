@@ -191,4 +191,3 @@ func reactionToNumber(reaction string) (int, bool) {
 	n, ok := numbers[reaction]
 	return n, ok
 }
-

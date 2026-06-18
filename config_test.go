@@ -68,6 +68,9 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	if cfg.Slack.SlashCommandChannel != "slack:commands" {
 		t.Errorf("default slack.slash_command_channel = %q, want %q", cfg.Slack.SlashCommandChannel, "slack:commands")
 	}
+	if cfg.OrderlyQueue != "orderlyq:pr-queue" {
+		t.Errorf("default orderly_queue = %q, want %q", cfg.OrderlyQueue, "orderlyq:pr-queue")
+	}
 }
 
 func TestLoadConfig_EnvExpansion(t *testing.T) {

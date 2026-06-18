@@ -146,7 +146,22 @@ func handleBranchSummary(ctx context.Context, cfg *Config, rdb *redis.Client, ou
 }
 
 func handleListOutput(ctx context.Context, cfg *Config, rdb *redis.Client, out PoppitOutput) {
+	var urls []struct {
+		URL string `json:"url"`
+	}
 
+	if err := json.Unmarshal([]byte(out.Output), &urls); err != nil {
+		log.Printf("Error parsing list output: %v", err)
+		return
+	}
+
+	for _, item := range urls {
+		if err := rdb.RPush(ctx, cfg.OrderlyQueue, item.URL).Err(); err != nil {
+			log.Printf("Error pushing URL to OrderlyQueue: %v", err)
+		}
+	}
+
+	log.Printf("Pushed %d URLs to OrderlyQueue", len(urls))
 }
 
 // buildHeadPayloads parses branch-list output and returns one PoppitPayload

@@ -30,6 +30,10 @@ type Config struct {
 	// be deleted from Slack after this duration. Populated by loadConfig.
 	SlackTTL time.Duration `yaml:"-"`
 
+	// OrderlyQueue is the Redis list for the Orderly queue.
+	// Defaults to "orderlyq:pr-queue".
+	OrderlyQueue string `yaml:"orderly_queue"`
+
 	// Redis holds connection settings for the SlackLiner Redis queue.
 	Redis struct {
 		Addr    string `yaml:"addr"`
@@ -120,7 +124,9 @@ func loadConfig(path string) (*Config, error) {
 	if cfg.Slack.SlashCommandChannel == "" {
 		cfg.Slack.SlashCommandChannel = "slack:commands"
 	}
-
+	if cfg.OrderlyQueue == "" {
+		cfg.OrderlyQueue = "orderlyq:pr-queue"
+	}
 	if cfg.SlackTTLStr == "" {
 		cfg.SlackTTL = 24 * time.Hour
 	} else {

@@ -117,21 +117,36 @@ func handlePoppitOutput(ctx context.Context, cfg *Config, rdb *redis.Client, raw
 		}
 
 	case strings.Contains(out.Command, "--head"):
-		branch, _ := out.Metadata["branch"].(string)
-		countFloat, ok := out.Metadata["count"].(float64)
-		if branch == "" {
-			log.Printf("Missing branch in metadata for command %q", out.Command)
-			return
+		if strings.HasPrefix(out.Command, fmt.Sprintf("%s summary", cfg.RevampPath)) {
+			handleBranchSummary(ctx, cfg, rdb, out)
 		}
-		if !ok {
-			log.Printf("Missing or invalid count in metadata for command %q", out.Command)
+
+		if strings.HasPrefix(out.Command, fmt.Sprintf("%s list", cfg.RevampPath)) {
+			handleListOutput(ctx, cfg, rdb, out)
 		}
-		summary := BranchSummary{Branch: branch, Count: int(countFloat)}
-		repos := parseRepoOutput(out.Output)
-		if err := publishSummary(ctx, rdb, cfg.Redis.ListKey, cfg.Channel, summary, repos, cfg.SlackTTL); err != nil {
-			log.Printf("Error publishing summary for branch %s: %v", branch, err)
-		}
+
 	}
+}
+
+func handleBranchSummary(ctx context.Context, cfg *Config, rdb *redis.Client, out PoppitOutput) {
+	branch, _ := out.Metadata["branch"].(string)
+	countFloat, ok := out.Metadata["count"].(float64)
+	if branch == "" {
+		log.Printf("Missing branch in metadata for command %q", out.Command)
+		return
+	}
+	if !ok {
+		log.Printf("Missing or invalid count in metadata for command %q", out.Command)
+	}
+	summary := BranchSummary{Branch: branch, Count: int(countFloat)}
+	repos := parseRepoOutput(out.Output)
+	if err := publishSummary(ctx, rdb, cfg.Redis.ListKey, cfg.Channel, summary, repos, cfg.SlackTTL); err != nil {
+		log.Printf("Error publishing summary for branch %s: %v", branch, err)
+	}
+}
+
+func handleListOutput(ctx context.Context, cfg *Config, rdb *redis.Client, out PoppitOutput) {
+
 }
 
 // buildHeadPayloads parses branch-list output and returns one PoppitPayload

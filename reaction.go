@@ -100,7 +100,7 @@ func handleReactionEvent(ctx context.Context, cfg *Config, rdb *redis.Client, sl
 		return
 	}
 
-	cmd, err := buildMergeCommand(cfg, evt.Event.Reaction, branch)
+	cmd, err := buildRevampCommand(cfg, evt.Event.Reaction, branch)
 	if err != nil {
 		log.Printf("Unsupported reaction %q for branch %s, skipping", evt.Event.Reaction, branch)
 		return
@@ -162,11 +162,14 @@ func fetchMessageMetadata(slackClient SlackClient, channel, ts string) (*message
 	return meta, nil
 }
 
-// buildMergeCommand constructs the revamp merge command string for a given
+// buildRevampCommand constructs the revamp command string for a given
 // reaction emoji name and branch. Returns an error for unrecognised reactions.
-func buildMergeCommand(cfg *Config, reaction, branch string) (string, error) {
+func buildRevampCommand(cfg *Config, reaction, branch string) (string, error) {
 	if reaction == "heart_eyes_cat" {
 		return fmt.Sprintf("%s merge --org %s --branch %s", cfg.RevampPath, cfg.Org, branch), nil
+	}
+	if reaction == "hourglass" {
+		return fmt.Sprintf("%s list --org %s --head %s", cfg.RevampPath, cfg.Org, branch), nil
 	}
 	if max, ok := reactionToNumber(reaction); ok {
 		return fmt.Sprintf("%s merge --org %s --branch %s --max %d", cfg.RevampPath, cfg.Org, branch, max), nil

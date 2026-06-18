@@ -30,7 +30,7 @@ func TestBuildMergeCommand_HeartEyesCat(t *testing.T) {
 		RevampPath: "revamp",
 	}
 
-	cmd, err := buildMergeCommand(cfg, "heart_eyes_cat", "renovate/golang-version-updates")
+	cmd, err := buildRevampCommand(cfg, "heart_eyes_cat", "renovate/golang-version-updates")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestBuildMergeCommand_NumberEmoji(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		cmd, err := buildMergeCommand(cfg, tc.reaction, "renovate/branch")
+		cmd, err := buildRevampCommand(cfg, tc.reaction, "renovate/branch")
 		if err != nil {
 			t.Errorf("[%s] unexpected error: %v", tc.reaction, err)
 			continue
@@ -84,11 +84,30 @@ func TestBuildMergeCommand_NumberEmoji(t *testing.T) {
 func TestBuildMergeCommand_NumberEmojiValues(t *testing.T) {
 	cfg := &Config{Org: "testorg", RevampPath: "revamp"}
 
-	cmd, err := buildMergeCommand(cfg, "three", "renovate/foo")
+	cmd, err := buildRevampCommand(cfg, "three", "renovate/foo")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	want := "revamp merge --org testorg --branch renovate/foo --max 3"
+	if cmd != want {
+		t.Errorf("cmd = %q, want %q", cmd, want)
+	}
+}
+
+// TestBuildMergeCommand_Hourglass verifies that the ⏳ reaction produces a
+// list command with --head.
+func TestBuildMergeCommand_Hourglass(t *testing.T) {
+	cfg := &Config{
+		Org:        "myorg",
+		RevampPath: "revamp",
+	}
+
+	cmd, err := buildRevampCommand(cfg, "hourglass", "renovate/golang-version-updates")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := "revamp list --org myorg --head renovate/golang-version-updates"
 	if cmd != want {
 		t.Errorf("cmd = %q, want %q", cmd, want)
 	}
@@ -99,7 +118,7 @@ func TestBuildMergeCommand_NumberEmojiValues(t *testing.T) {
 func TestBuildMergeCommand_UnrecognisedReaction(t *testing.T) {
 	cfg := &Config{Org: "myorg", RevampPath: "revamp"}
 
-	_, err := buildMergeCommand(cfg, "thumbsup", "renovate/branch")
+	_, err := buildRevampCommand(cfg, "thumbsup", "renovate/branch")
 	if err == nil {
 		t.Error("expected error for unrecognised reaction, got nil")
 	}

@@ -146,9 +146,10 @@ func handleBranchSummary(ctx context.Context, cfg *Config, rdb *redis.Client, ou
 }
 
 func handleListOutput(ctx context.Context, cfg *Config, rdb *redis.Client, out PoppitOutput) {
-	var urls []struct {
+	type listItem struct {
 		URL string `json:"url"`
 	}
+	var urls []listItem
 
 	if err := json.Unmarshal([]byte(out.Output), &urls); err != nil {
 		log.Printf("Error parsing list output: %v", err)
@@ -162,6 +163,37 @@ func handleListOutput(ctx context.Context, cfg *Config, rdb *redis.Client, out P
 	}
 
 	log.Printf("Pushed %d URLs to OrderlyQueue", len(urls))
+
+	threadTs, _ := out.Metadata["thread_ts"].(string)
+	channel, _ := out.Metadata["channel"].(string)
+	if threadTs == "" || channel == "" {
+		return
+	}
+
+	branch, _ := out.Metadata["branch"].(string)
+	rawURLs := make([]string, len(urls))
+	for i, item := range urls {
+		rawURLs[i] = item.URL
+	}
+	text := formatListReply(branch, rawURLs)
+
+	if err := publishThreadReply(ctx, rdb, cfg.Redis.ListKey, channel, threadTs, text); err != nil {
+		log.Printf("Error publishing list reply for branch %s: %v", branch, err)
+	}
+}
+
+// formatListReply builds the Slack thread-reply text for a revamp list result.
+// It lists each queued PR URL as a Slack hyperlink, or reports that no PRs were found.
+func formatListReply(branch string, urls []string) string {
+	if len(urls) == 0 {
+		return fmt.Sprintf("No Renovate PRs found for branch %s", branch)
+	}
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Found %d Renovate PR%s queued for branch %s", len(urls), pluralS(len(urls)), branch)
+	for _, u := range urls {
+		fmt.Fprintf(&sb, "\n• <%s>", u)
+	}
+	return sb.String()
 }
 
 // buildHeadPayloads parses branch-list output and returns one PoppitPayload

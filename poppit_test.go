@@ -106,6 +106,56 @@ func TestPoppitPayload_JSONRoundTrip(t *testing.T) {
 	}
 }
 
+func TestFormatListReply_MultipleURLs(t *testing.T) {
+	urls := []string{
+		"https://github.com/org/repo-a/pull/1",
+		"https://github.com/org/repo-b/pull/2",
+		"https://github.com/org/repo-c/pull/3",
+	}
+
+	got := formatListReply("renovate/golang-version-updates", urls)
+
+	if want := "Found 3 Renovate PRs queued for branch renovate/golang-version-updates"; !strings.Contains(got, want) {
+		t.Errorf("expected header %q\nGot:\n%s", want, got)
+	}
+	for _, u := range urls {
+		if !strings.Contains(got, "<"+u+">") {
+			t.Errorf("expected URL %q in reply\nGot:\n%s", u, got)
+		}
+	}
+}
+
+func TestFormatListReply_SingleURL(t *testing.T) {
+	urls := []string{"https://github.com/org/repo/pull/42"}
+
+	got := formatListReply("renovate/branch", urls)
+
+	if want := "Found 1 Renovate PR queued for branch renovate/branch"; !strings.Contains(got, want) {
+		t.Errorf("expected singular form %q\nGot:\n%s", want, got)
+	}
+	if !strings.Contains(got, "<https://github.com/org/repo/pull/42>") {
+		t.Errorf("expected URL in reply\nGot:\n%s", got)
+	}
+}
+
+func TestFormatListReply_NoURLs(t *testing.T) {
+	got := formatListReply("renovate/golang-version-updates", nil)
+
+	want := "No Renovate PRs found for branch renovate/golang-version-updates"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestFormatListReply_EmptyURLs(t *testing.T) {
+	got := formatListReply("renovate/branch", []string{})
+
+	want := "No Renovate PRs found for branch renovate/branch"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
 func TestPoppitOutput_JSONUnmarshal(t *testing.T) {
 	raw := `{
 		"metadata": {"type": "Renobot", "branch": "renovate/foo", "count": 3},

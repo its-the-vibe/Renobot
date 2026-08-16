@@ -1,5 +1,5 @@
 # ----- build stage -----
-FROM golang:1.26.5 AS builder
+FROM golang:1.26.6 AS builder
 
 WORKDIR /build
 

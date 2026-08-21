@@ -1,7 +1,8 @@
 services:
   renobot:
     build: .
-    image: renobot:latest
+    image: ghcr.io/its-the-vibe/renobot:latest
+    pull_policy: always
     restart: on-failure:10
     read_only: true
     env_file: .env

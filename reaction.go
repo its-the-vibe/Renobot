@@ -181,15 +181,16 @@ func buildRevampCommand(cfg *Config, reaction, branch string) (string, error) {
 // Returns (0, false) for non-numeric reactions.
 func reactionToNumber(reaction string) (int, bool) {
 	numbers := map[string]int{
-		"one":   1,
-		"two":   2,
-		"three": 3,
-		"four":  4,
-		"five":  5,
-		"six":   6,
-		"seven": 7,
-		"eight": 8,
-		"nine":  9,
+		"one":        1,
+		"two":        2,
+		"three":      3,
+		"four":       4,
+		"five":       5,
+		"six":        6,
+		"seven":      7,
+		"eight":      8,
+		"nine":       9,
+		"keycap_ten": 10,
 	}
 	n, ok := numbers[reaction]
 	return n, ok
